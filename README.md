@@ -1,3 +1,5 @@
+# ChronelApp
+Chronel is a privacy-first mobile app that helps users reflect on daily habits, identify patterns that lead to unproductive or unfulfilling days, and receive simple, actionable suggestions.
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
