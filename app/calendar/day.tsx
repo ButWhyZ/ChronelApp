@@ -1,16 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 
-type ThemeMode = "light" | "dark";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
 type Task = {
   id: string;
@@ -23,11 +19,7 @@ type Task = {
   createdAt: number;
 };
 
-const STORAGE_KEYS = {
-  theme: "chronel_theme",
-  accent: "chronel_accent",
-  tasks: "chronel_tasks",
-};
+const STORAGE_KEYS = { tasks: "chronel_tasks" };
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -48,53 +40,50 @@ function formatLongDate(d: Date) {
 export default function DayDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ date?: string }>();
-  const isoDate = params.date ?? `${new Date().getFullYear()}-${pad2(new Date().getMonth() + 1)}-${pad2(new Date().getDate())}`;
+  const today = new Date();
+  const isoDate =
+    params.date ??
+    `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
 
-  const [theme, setTheme] = useState<ThemeMode>("light");
-  const [accent, setAccent] = useState("#356AE6");
-  const [tasks, setTasks] = useState<Task[]>([]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const [t, a, savedTasks] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.theme),
-          AsyncStorage.getItem(STORAGE_KEYS.accent),
-          AsyncStorage.getItem(STORAGE_KEYS.tasks),
-        ]);
-        if (t === "light" || t === "dark") setTheme(t);
-        if (a) setAccent(a);
-        if (savedTasks) setTasks(JSON.parse(savedTasks));
-      } catch {}
-    })();
-
-    const interval = setInterval(async () => {
-      try {
-        const savedTasks = await AsyncStorage.getItem(STORAGE_KEYS.tasks);
-        if (savedTasks) setTasks(JSON.parse(savedTasks));
-      } catch {}
-    }, 900);
-
-    return () => clearInterval(interval);
-  }, []);
+  const colorScheme = useColorScheme() ?? "light";
+  const theme = Colors[colorScheme];
 
   const colors = useMemo(() => {
-    const dark = theme === "dark";
+    const dark = colorScheme === "dark";
     return {
-      bg: dark ? "#0F1115" : "#FFFFFF",
-      text: dark ? "#F5F7FA" : "#0B0D12",
+      bg: theme.background,
+      text: theme.text,
       subtext: dark ? "#A7B0BF" : "#6B7280",
       border: dark ? "#232733" : "#E5E7EB",
-      accent,
+      accent: theme.tint,
       card: dark ? "#151823" : "#FFFFFF",
-      soft: dark ? "#151823" : "#F7F8FB",
     };
-  }, [theme, accent]);
+  }, [colorScheme, theme.background, theme.text, theme.tint]);
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  const loadTasks = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEYS.tasks);
+      setTasks(raw ? JSON.parse(raw) : []);
+    } catch {
+      setTasks([]);
+    }
+  }, []);
+
+  // ✅ refresh whenever you navigate back to this screen
+  useFocusEffect(
+    useCallback(() => {
+      loadTasks();
+    }, [loadTasks])
+  );
 
   const dateObj = useMemo(() => parseISODate(isoDate), [isoDate]);
 
   const tasksForDay = useMemo(() => {
-    return tasks.filter((t) => t.date === isoDate).sort((a, b) => a.createdAt - b.createdAt);
+    return tasks
+      .filter((t) => t.date === isoDate)
+      .sort((a, b) => a.createdAt - b.createdAt);
   }, [tasks, isoDate]);
 
   const openAdd = () => {
@@ -102,10 +91,16 @@ export default function DayDetailScreen() {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.content} testID="dayDetail_scrollView_01">
+    <ScrollView
+      style={{ backgroundColor: colors.bg }}
+      contentContainerStyle={styles.content}
+      testID="dayDetail_scrollView_01"
+    >
       <Pressable onPress={() => router.back()} style={styles.backRow} testID="dayDetail_back_btn_01">
         <Ionicons name="arrow-back" size={22} color={colors.subtext} testID="dayDetail_back_icon_01" />
-        <Text style={[styles.backTxt, { color: colors.subtext }]} testID="dayDetail_back_txt_01">Back</Text>
+        <Text style={[styles.backTxt, { color: colors.subtext }]} testID="dayDetail_back_txt_01">
+          Back
+        </Text>
       </Pressable>
 
       <Text style={[styles.dateTitle, { color: colors.text }]} testID="dayDetail_titleTxt_01">
@@ -116,7 +111,6 @@ export default function DayDetailScreen() {
         {tasksForDay.length} tasks
       </Text>
 
-      {/* Empty state or list */}
       {tasksForDay.length === 0 ? (
         <View style={styles.emptyWrap} testID="dayDetail_empty_wrap_01">
           <Ionicons name="calendar-outline" size={72} color={colors.subtext} testID="dayDetail_empty_icon_01" />
@@ -127,8 +121,14 @@ export default function DayDetailScreen() {
             Add your first task for this day
           </Text>
 
-          <Pressable onPress={openAdd} style={[styles.midAddBtn, { backgroundColor: colors.accent }]} testID="dayDetail_empty_addBtn_01">
-            <Text style={styles.midAddBtnTxt} testID="dayDetail_empty_addBtnTxt_01">Add Task</Text>
+          <Pressable
+            onPress={openAdd}
+            style={[styles.midAddBtn, { backgroundColor: colors.accent }]}
+            testID="dayDetail_empty_addBtn_01"
+          >
+            <Text style={styles.midAddBtnTxt} testID="dayDetail_empty_addBtnTxt_01">
+              Add Task
+            </Text>
           </Pressable>
         </View>
       ) : (
@@ -161,10 +161,15 @@ export default function DayDetailScreen() {
         </View>
       )}
 
-      {/* Bottom Add Task */}
-      <Pressable onPress={openAdd} style={[styles.bottomAddBtn, { backgroundColor: colors.accent }]} testID="dayDetail_bottom_addBtn_01">
+      <Pressable
+        onPress={openAdd}
+        style={[styles.bottomAddBtn, { backgroundColor: colors.accent }]}
+        testID="dayDetail_bottom_addBtn_01"
+      >
         <Ionicons name="add" size={26} color="#fff" testID="dayDetail_bottom_addIcon_01" />
-        <Text style={styles.bottomAddBtnTxt} testID="dayDetail_bottom_addTxt_01">Add Task</Text>
+        <Text style={styles.bottomAddBtnTxt} testID="dayDetail_bottom_addTxt_01">
+          Add Task
+        </Text>
       </Pressable>
 
       <View style={{ height: 18 }} testID="dayDetail_bottomSpacer_01" />
@@ -172,7 +177,15 @@ export default function DayDetailScreen() {
   );
 }
 
-function PriorityPill({ priority, colors, index }: { priority: "low" | "medium" | "high"; colors: any; index: number }) {
+function PriorityPill({
+  priority,
+  colors,
+  index,
+}: {
+  priority: "low" | "medium" | "high";
+  colors: any;
+  index: number;
+}) {
   const map = {
     low: { label: "Low", border: colors.border, text: colors.subtext, bg: "transparent" },
     medium: { label: "Medium", border: "#F6B100", text: "#F6B100", bg: "#FFF5D6" },
