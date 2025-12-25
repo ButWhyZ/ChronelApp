@@ -1,39 +1,40 @@
 import { View, Text, Pressable } from "react-native";
 import { router } from "expo-router";
-import { Colors } from "../../constants/theme";
 import { OAuthButton } from "../../components/OAuthButton";
 import { InfoCard } from "../../components/InfoCard";
+import { useAppTheme } from "../../hooks/use-app-theme";
 
 export default function Login() {
+  const { colors } = useAppTheme();
+
   const fakeAuth = () => {
-    // TODO: integrate Firebase OAuth later
     router.replace("/onboarding/mode");
   };
 
   return (
     <View
       testID="ID:login_root_01"
-      style={{ flex: 1, backgroundColor: Colors.light.background, padding: 24 }}
+      style={{ flex: 1, backgroundColor: colors.bg, padding: 24 }}
     >
       <Pressable
         testID="ID:login_backBtn_01"
         onPress={() => router.back()}
         style={{ paddingVertical: 8 }}
       >
-        <Text style={{ color: Colors.light.icon, fontWeight: "700" }}>← Back</Text>
+        <Text style={{ color: colors.subtext, fontWeight: "700" }}>← Back</Text>
       </Pressable>
 
       <View style={{ flex: 1, justifyContent: "center" }}>
         <Text
           testID="ID:login_titleTxt_01"
-          style={{ fontSize: 34, fontWeight: "900", color: Colors.light.text }}
+          style={{ fontSize: 34, fontWeight: "900", color: colors.text }}
         >
           Sign In
         </Text>
 
         <Text
           testID="ID:login_subTxt_01"
-          style={{ marginTop: 10, color: Colors.light.icon }}
+          style={{ marginTop: 10, color: colors.subtext }}
         >
           Connect your account to sync across devices
         </Text>

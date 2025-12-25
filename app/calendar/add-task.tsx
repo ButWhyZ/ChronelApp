@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -13,22 +13,21 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-type ThemeMode = "light" | "dark";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
 type Task = {
   id: string;
   title: string;
   notes?: string;
   date: string; // YYYY-MM-DD
-  time?: string; // display string
+  time?: string;
   priority: "low" | "medium" | "high";
   addToDeviceCalendar: boolean;
   createdAt: number;
 };
 
 const STORAGE_KEYS = {
-  theme: "chronel_theme",
-  accent: "chronel_accent",
   tasks: "chronel_tasks",
 };
 
@@ -41,40 +40,29 @@ export default function AddTaskScreen() {
   const params = useLocalSearchParams<{ date?: string }>();
   const initialDate = params.date ?? new Date().toISOString().slice(0, 10);
 
-  const [theme, setTheme] = useState<ThemeMode>("light");
-  const [accent, setAccent] = useState("#356AE6");
+  const colorScheme = useColorScheme() ?? "light";
+  const theme = Colors[colorScheme];
+
+  const colors = useMemo(() => {
+    const dark = colorScheme === "dark";
+    return {
+      bg: theme.background,
+      text: theme.text,
+      subtext: dark ? "#A7B0BF" : "#6B7280",
+      border: dark ? "#232733" : "#E5E7EB",
+      inputBg: dark ? "#151823" : "#EEF0F4",
+      accent: theme.tint,
+      card: dark ? "#151823" : "#F7F8FB",
+      danger: "#C83737",
+    };
+  }, [colorScheme, theme.background, theme.text, theme.tint]);
 
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(initialDate);
-  const [time, setTime] = useState("12:30 PM"); // placeholder for now
+  const [time, setTime] = useState("12:30 PM");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [addToDeviceCalendar, setAddToDeviceCalendar] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const [t, a] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.theme),
-          AsyncStorage.getItem(STORAGE_KEYS.accent),
-        ]);
-        if (t === "light" || t === "dark") setTheme(t);
-        if (a) setAccent(a);
-      } catch {}
-    })();
-  }, []);
-
-  const colors = useMemo(() => {
-    const dark = theme === "dark";
-    return {
-      bg: dark ? "#0F1115" : "#FFFFFF",
-      text: dark ? "#F5F7FA" : "#0B0D12",
-      subtext: dark ? "#A7B0BF" : "#6B7280",
-      border: dark ? "#232733" : "#E5E7EB",
-      inputBg: dark ? "#151823" : "#EEF0F4",
-      accent,
-    };
-  }, [theme, accent]);
 
   const saveTask = async () => {
     if (!title.trim()) {
@@ -96,8 +84,10 @@ export default function AddTaskScreen() {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.tasks);
       const existing: Task[] = raw ? JSON.parse(raw) : [];
-      const updated = [...existing, task];
-      await AsyncStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify(updated));
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.tasks,
+        JSON.stringify([...existing, task])
+      );
     } catch {}
 
     router.back();
@@ -153,17 +143,28 @@ export default function AddTaskScreen() {
     >
       {/* Header */}
       <View style={styles.headerRow} testID="taskModal_headerRow_01">
-        <Text style={[styles.headerTitle, { color: colors.text }]} testID="taskModal_headerTitleTxt_01">
+        <Text
+          style={[styles.headerTitle, { color: colors.text }]}
+          testID="taskModal_headerTitleTxt_01"
+        >
           Add Task
         </Text>
         <Pressable onPress={() => router.back()} testID="taskModal_closeBtn_01">
-          <Ionicons name="close" size={28} color={colors.text} testID="taskModal_closeIcon_01" />
+          <Ionicons
+            name="close"
+            size={28}
+            color={colors.text}
+            testID="taskModal_closeIcon_01"
+          />
         </Pressable>
       </View>
 
       {/* Title */}
       <Text style={[styles.label, { color: colors.text }]} testID="taskModal_titleLabelTxt_01">
-        Title <Text style={{ color: "#C83737" }} testID="taskModal_titleRequiredMarkTxt_01">*</Text>
+        Title{" "}
+        <Text style={{ color: colors.danger }} testID="taskModal_titleRequiredMarkTxt_01">
+          *
+        </Text>
       </Text>
       <TextInput
         value={title}
@@ -188,11 +189,14 @@ export default function AddTaskScreen() {
         testID="taskModal_notesInput_01"
       />
 
-      {/* Date/Time Row */}
+      {/* Date/Time */}
       <View style={styles.row} testID="taskModal_dateTimeRow_01">
         <View style={{ flex: 1 }} testID="taskModal_dateCol_01">
           <Text style={[styles.label, { color: colors.text }]} testID="taskModal_dateLabelTxt_01">
-            Date <Text style={{ color: "#C83737" }} testID="taskModal_dateRequiredMarkTxt_01">*</Text>
+            Date{" "}
+            <Text style={{ color: colors.danger }} testID="taskModal_dateRequiredMarkTxt_01">
+              *
+            </Text>
           </Text>
           <TextInput
             value={date}
@@ -219,7 +223,6 @@ export default function AddTaskScreen() {
       <Text style={[styles.label, { color: colors.text }]} testID="taskModal_priorityLabelTxt_01">
         Priority
       </Text>
-
       <View style={styles.priorityRow} testID="taskModal_priorityRow_01">
         <PriorityBtn label="Low" value="low" index={1} />
         <PriorityBtn label="Medium" value="medium" index={2} />
@@ -230,7 +233,7 @@ export default function AddTaskScreen() {
       <View
         style={[
           styles.toggleCard,
-          { borderColor: colors.border, backgroundColor: theme === "dark" ? "#151823" : "#F7F8FB" },
+          { borderColor: colors.border, backgroundColor: colors.card },
         ]}
         testID="taskModal_deviceCalendarCard_01"
       >
@@ -251,7 +254,7 @@ export default function AddTaskScreen() {
         />
       </View>
 
-      {/* Footer buttons */}
+      {/* Footer */}
       <View style={styles.footerRow} testID="taskModal_footerRow_01">
         <Pressable
           onPress={() => router.back()}

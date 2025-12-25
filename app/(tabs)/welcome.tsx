@@ -1,15 +1,17 @@
 import { View, Text } from "react-native";
 import { router } from "expo-router";
-import { Colors } from "../../constants/theme";
 import { PrimaryButton } from "../../components/primarybutton";
 import { SecondaryButton } from "../../components/secondarybutton";
 import { InfoCard } from "../../components/InfoCard";
+import { useAppTheme } from "@/hooks/use-app-theme";
 
 export default function Welcome() {
+  const { colors } = useAppTheme();
+
   return (
     <View
       testID="ID:welcome_root_01"
-      style={{ flex: 1, backgroundColor: Colors.light.background, padding: 24 }}
+      style={{ flex: 1, backgroundColor: colors.bg, padding: 24 }}
     >
       <View style={{ flex: 1, justifyContent: "center" }}>
         <Text
@@ -17,7 +19,7 @@ export default function Welcome() {
           style={{
             fontSize: 42,
             fontWeight: "800",
-            color: Colors.light.tint,
+            color: colors.tint,
             textAlign: "center",
           }}
         >
@@ -29,12 +31,13 @@ export default function Welcome() {
           style={{
             marginTop: 12,
             fontSize: 16,
-            color: Colors.light.icon,
+            color: colors.subtext,
             textAlign: "center",
             lineHeight: 22,
           }}
         >
-          Track your daily well-being, gain insights, and build better habits with AI-powered suggestions.
+          Track your daily well-being, gain insights, and build better habits with AI-powered
+          suggestions.
         </Text>
 
         <View style={{ marginTop: 28 }}>
