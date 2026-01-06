@@ -12,7 +12,7 @@ export default function Login() {
 
   const fakeAuth = async () => {
   await AsyncStorage.setItem("chronel_loggedIn", "true");
-  router.replace("/(tabs)");
+  router.replace("../(tabs)");
 };
 
   return (
