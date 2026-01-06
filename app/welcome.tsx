@@ -1,9 +1,11 @@
 import { View, Text } from "react-native";
 import { router } from "expo-router";
-import { PrimaryButton } from "../../components/primarybutton";
-import { SecondaryButton } from "../../components/secondarybutton";
-import { InfoCard } from "../../components/InfoCard";
+import { PrimaryButton } from "../components/primarybutton";
+import { SecondaryButton } from "../components/secondarybutton";
+import { InfoCard } from "../components/InfoCard";
 import { useAppTheme } from "@/hooks/use-app-theme";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 
 export default function Welcome() {
   const { colors } = useAppTheme();
@@ -58,10 +60,15 @@ export default function Welcome() {
           onPress={() => router.push("/login")}
         />
         <SecondaryButton
-          testID="ID:welcome_guestBtn_01"
-          title="Continue Without Account"
-          onPress={() => router.replace("/onboarding/mode")}
-        />
+            testID="ID:welcome_guestBtn_01"
+            title="Continue Without Account"
+            onPress={async () => {
+              await AsyncStorage.setItem("chronel_loggedIn", "true");
+              await AsyncStorage.setItem("chronel_authMode", "guest"); // optional, but useful
+              router.replace("/onboarding/mode");
+  }}
+/>
+
       </View>
     </View>
   );

@@ -1,15 +1,19 @@
 import { View, Text, Pressable } from "react-native";
 import { router } from "expo-router";
-import { OAuthButton } from "../../components/OAuthButton";
-import { InfoCard } from "../../components/InfoCard";
-import { useAppTheme } from "../../hooks/use-app-theme";
+import { OAuthButton } from "../components/OAuthButton";
+import { InfoCard } from "../components/InfoCard";
+import { useAppTheme } from "../hooks/use-app-theme";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+
 
 export default function Login() {
   const { colors } = useAppTheme();
 
-  const fakeAuth = () => {
-    router.replace("/onboarding/mode");
-  };
+  const fakeAuth = async () => {
+  await AsyncStorage.setItem("chronel_loggedIn", "true");
+  router.replace("../(tabs)");
+};
 
   return (
     <View
