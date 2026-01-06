@@ -1,6 +1,7 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { Platform } from "react-native";
-import { Tabs } from "expo-router";
+import { Tabs, router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -10,6 +11,21 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 export default function RootLayout() {
   const colorScheme = useColorScheme() ?? "light";
   const theme = Colors[colorScheme];
+
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const loggedIn = await AsyncStorage.getItem("chronel_loggedIn");
+
+      if (!loggedIn) {
+        router.replace("/welcome");
+        return;
+      }
+
+      setReady(true);
+    })();
+  }, []);
 
   const tabBarStyle = useMemo(
     () => ({
@@ -33,6 +49,8 @@ export default function RootLayout() {
     [theme.background]
   );
 
+  if (!ready) return null;
+
   return (
     <Tabs
       screenOptions={{
@@ -43,7 +61,7 @@ export default function RootLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="checkin"
         options={{
           title: "Check-In",
           tabBarButtonTestID: "tab_checkin_btn_01",
@@ -52,12 +70,7 @@ export default function RootLayout() {
             <HapticTab {...props} testID="tab_checkin_btn_01" />
           ),
           tabBarIcon: ({ color }) => (
-            <IconSymbol
-              name="house.fill"
-              size={28}
-              color={color}
-              
-            />
+            <IconSymbol name="house.fill" size={28} color={color} />
           ),
         }}
       />
@@ -72,12 +85,7 @@ export default function RootLayout() {
             <HapticTab {...props} testID="tab_calendar_btn_01" />
           ),
           tabBarIcon: ({ color }) => (
-            <IconSymbol
-              name="calendar"
-              size={28}
-              color={color}
-            
-            />
+            <IconSymbol name="calendar" size={28} color={color} />
           ),
         }}
       />
@@ -92,12 +100,7 @@ export default function RootLayout() {
             <HapticTab {...props} testID="tab_insights_btn_01" />
           ),
           tabBarIcon: ({ color }) => (
-            <IconSymbol
-              name="chart.line.uptrend.xyaxis"
-              size={28}
-              color={color}
-             
-            />
+            <IconSymbol name="chart.line.uptrend.xyaxis" size={28} color={color} />
           ),
         }}
       />
@@ -112,12 +115,7 @@ export default function RootLayout() {
             <HapticTab {...props} testID="tab_settings_btn_01" />
           ),
           tabBarIcon: ({ color }) => (
-            <IconSymbol
-              name="gearshape.fill"
-              size={28}
-              color={color}
-            
-            />
+            <IconSymbol name="gearshape.fill" size={28} color={color} />
           ),
         }}
       />
