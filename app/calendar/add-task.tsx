@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Pressable,
@@ -12,24 +12,20 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useAppTheme } from "../../hooks/use-app-theme";
 
 type Task = {
   id: string;
   title: string;
   notes?: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   time?: string;
   priority: "low" | "medium" | "high";
   addToDeviceCalendar: boolean;
   createdAt: number;
 };
 
-const STORAGE_KEYS = {
-  tasks: "chronel_tasks",
-};
+const STORAGE_KEYS = { tasks: "chronel_tasks" };
 
 function genId() {
   return `task_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -40,29 +36,21 @@ export default function AddTaskScreen() {
   const params = useLocalSearchParams<{ date?: string }>();
   const initialDate = params.date ?? new Date().toISOString().slice(0, 10);
 
-  const colorScheme = useColorScheme() ?? "light";
-  const theme = Colors[colorScheme];
-
-  const colors = useMemo(() => {
-    const dark = colorScheme === "dark";
-    return {
-      bg: theme.background,
-      text: theme.text,
-      subtext: dark ? "#A7B0BF" : "#6B7280",
-      border: dark ? "#232733" : "#E5E7EB",
-      inputBg: dark ? "#151823" : "#EEF0F4",
-      accent: theme.tint,
-      card: dark ? "#151823" : "#F7F8FB",
-      danger: "#C83737",
-    };
-  }, [colorScheme, theme.background, theme.text, theme.tint]);
+  const { colors } = useAppTheme();
+  const inputBg = colors.inputBg ?? colors.card ?? "transparent";
 
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState("12:30 PM");
-  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
+  const [priority, setPriority] = useState<Task["priority"]>("low");
   const [addToDeviceCalendar, setAddToDeviceCalendar] = useState(false);
+
+  const goToCalendarTab = () => {
+    // ✅ Always land back on the Calendar month view (tab screen)
+    // Using the group path makes this reliable.
+    router.replace("/(tabs)/calendar");
+  };
 
   const saveTask = async () => {
     if (!title.trim()) {
@@ -84,13 +72,13 @@ export default function AddTaskScreen() {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.tasks);
       const existing: Task[] = raw ? JSON.parse(raw) : [];
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.tasks,
-        JSON.stringify([...existing, task])
-      );
-    } catch {}
+      await AsyncStorage.setItem(STORAGE_KEYS.tasks, JSON.stringify([...existing, task]));
+    } catch {
+      // ignore
+    }
 
-    router.back();
+    // ✅ Close the modal + go back to Calendar tab
+    goToCalendarTab();
   };
 
   const PriorityBtn = ({
@@ -99,13 +87,13 @@ export default function AddTaskScreen() {
     index,
   }: {
     label: string;
-    value: "low" | "medium" | "high";
+    value: Task["priority"];
     index: number;
   }) => {
     const selected = priority === value;
 
     const styleMap = {
-      low: { border: colors.border, text: colors.text, bg: "transparent" },
+      low: { border: "#22C55E", text: "#22C55E", bg: "rgba(34,197,94,0.14)" },
       medium: { border: "#F6B100", text: "#F6B100", bg: "#FFF5D6" },
       high: { border: "#C83737", text: "#C83737", bg: "#FFE3E3" },
     }[value];
@@ -123,10 +111,7 @@ export default function AddTaskScreen() {
         testID={`taskModal_priorityBtn_${index}_01`}
       >
         <Text
-          style={[
-            styles.priorityTxt,
-            { color: selected ? styleMap.text : colors.text },
-          ]}
+          style={[styles.priorityTxt, { color: selected ? styleMap.text : colors.text }]}
           testID={`taskModal_priorityTxt_${index}_01`}
         >
           {label}
@@ -141,41 +126,29 @@ export default function AddTaskScreen() {
       contentContainerStyle={styles.content}
       testID="taskModal_scrollView_01"
     >
-      {/* Header */}
       <View style={styles.headerRow} testID="taskModal_headerRow_01">
-        <Text
-          style={[styles.headerTitle, { color: colors.text }]}
-          testID="taskModal_headerTitleTxt_01"
-        >
+        <Text style={[styles.headerTitle, { color: colors.text }]} testID="taskModal_headerTitleTxt_01">
           Add Task
         </Text>
-        <Pressable onPress={() => router.back()} testID="taskModal_closeBtn_01">
-          <Ionicons
-            name="close"
-            size={28}
-            color={colors.text}
-            testID="taskModal_closeIcon_01"
-          />
+
+        {/* ✅ Close should also go back to calendar month view */}
+        <Pressable onPress={goToCalendarTab} testID="taskModal_closeBtn_01">
+          <Ionicons name="close" size={28} color={colors.text} testID="taskModal_closeIcon_01" />
         </Pressable>
       </View>
 
-      {/* Title */}
       <Text style={[styles.label, { color: colors.text }]} testID="taskModal_titleLabelTxt_01">
-        Title{" "}
-        <Text style={{ color: colors.danger }} testID="taskModal_titleRequiredMarkTxt_01">
-          *
-        </Text>
+        Title <Text style={{ color: "#C83737" }} testID="taskModal_titleRequiredMarkTxt_01">*</Text>
       </Text>
       <TextInput
         value={title}
         onChangeText={setTitle}
         placeholder="Task title..."
         placeholderTextColor={colors.subtext}
-        style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
+        style={[styles.input, { backgroundColor: inputBg, color: colors.text }]}
         testID="taskModal_titleInput_01"
       />
 
-      {/* Notes */}
       <Text style={[styles.label, { color: colors.text }]} testID="taskModal_notesLabelTxt_01">
         Notes (optional)
       </Text>
@@ -184,24 +157,20 @@ export default function AddTaskScreen() {
         onChangeText={setNotes}
         placeholder="Additional details..."
         placeholderTextColor={colors.subtext}
-        style={[styles.textArea, { backgroundColor: colors.inputBg, color: colors.text }]}
+        style={[styles.textArea, { backgroundColor: inputBg, color: colors.text }]}
         multiline
         testID="taskModal_notesInput_01"
       />
 
-      {/* Date/Time */}
       <View style={styles.row} testID="taskModal_dateTimeRow_01">
         <View style={{ flex: 1 }} testID="taskModal_dateCol_01">
           <Text style={[styles.label, { color: colors.text }]} testID="taskModal_dateLabelTxt_01">
-            Date{" "}
-            <Text style={{ color: colors.danger }} testID="taskModal_dateRequiredMarkTxt_01">
-              *
-            </Text>
+            Date <Text style={{ color: "#C83737" }} testID="taskModal_dateRequiredMarkTxt_01">*</Text>
           </Text>
           <TextInput
             value={date}
             onChangeText={setDate}
-            style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
+            style={[styles.input, { backgroundColor: inputBg, color: colors.text }]}
             testID="taskModal_dateInput_01"
           />
         </View>
@@ -213,28 +182,23 @@ export default function AddTaskScreen() {
           <TextInput
             value={time}
             onChangeText={setTime}
-            style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text }]}
+            style={[styles.input, { backgroundColor: inputBg, color: colors.text }]}
             testID="taskModal_timeInput_01"
           />
         </View>
       </View>
 
-      {/* Priority */}
       <Text style={[styles.label, { color: colors.text }]} testID="taskModal_priorityLabelTxt_01">
-        Priority
+        Difficulty
       </Text>
       <View style={styles.priorityRow} testID="taskModal_priorityRow_01">
-        <PriorityBtn label="Low" value="low" index={1} />
+        <PriorityBtn label="Easy" value="low" index={1} />
         <PriorityBtn label="Medium" value="medium" index={2} />
-        <PriorityBtn label="High" value="high" index={3} />
+        <PriorityBtn label="Hard" value="high" index={3} />
       </View>
 
-      {/* Add to device calendar */}
       <View
-        style={[
-          styles.toggleCard,
-          { borderColor: colors.border, backgroundColor: colors.card },
-        ]}
+        style={[styles.toggleCard, { borderColor: colors.border, backgroundColor: colors.card }]}
         testID="taskModal_deviceCalendarCard_01"
       >
         <View style={{ flex: 1 }} testID="taskModal_deviceCalendarLeft_01">
@@ -249,15 +213,14 @@ export default function AddTaskScreen() {
         <Switch
           value={addToDeviceCalendar}
           onValueChange={setAddToDeviceCalendar}
-          trackColor={{ false: "#E5E7EB", true: colors.accent }}
+          trackColor={{ false: "#E5E7EB", true: colors.tint }}
           testID="taskModal_deviceCalendarSwitch_01"
         />
       </View>
 
-      {/* Footer */}
       <View style={styles.footerRow} testID="taskModal_footerRow_01">
         <Pressable
-          onPress={() => router.back()}
+          onPress={goToCalendarTab}
           style={[styles.cancelBtn, { borderColor: colors.border }]}
           testID="taskModal_cancelBtn_01"
         >
@@ -268,7 +231,7 @@ export default function AddTaskScreen() {
 
         <Pressable
           onPress={saveTask}
-          style={[styles.saveBtn, { backgroundColor: colors.accent }]}
+          style={[styles.saveBtn, { backgroundColor: colors.tint }]}
           testID="taskModal_saveBtn_01"
         >
           <Text style={styles.saveTxt} testID="taskModal_saveTxt_01">
@@ -288,25 +251,25 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { fontSize: 34, fontWeight: "900" },
 
-  label: { marginTop: 22, marginBottom: 10, fontSize: 22, fontWeight: "900" },
+  label: { marginTop: 22, marginBottom: 10, fontSize: 20, fontWeight: "900" },
 
-  input: { borderRadius: 18, paddingHorizontal: 18, paddingVertical: 16, fontSize: 20, fontWeight: "800" },
-  textArea: { borderRadius: 18, paddingHorizontal: 18, paddingVertical: 16, fontSize: 18, fontWeight: "700", minHeight: 140 },
+  input: { borderRadius: 18, paddingHorizontal: 18, paddingVertical: 16, fontSize: 18, fontWeight: "800" },
+  textArea: { borderRadius: 18, paddingHorizontal: 18, paddingVertical: 16, fontSize: 16, fontWeight: "700", minHeight: 140 },
 
   row: { flexDirection: "row", gap: 14, marginTop: 6 },
 
   priorityRow: { flexDirection: "row", gap: 14, marginTop: 6 },
   priorityBtn: { flex: 1, borderWidth: 3, borderRadius: 999, paddingVertical: 16, alignItems: "center" },
-  priorityTxt: { fontSize: 20, fontWeight: "900" },
+  priorityTxt: { fontSize: 18, fontWeight: "900" },
 
   toggleCard: { marginTop: 22, borderWidth: 1, borderRadius: 18, padding: 18, flexDirection: "row", alignItems: "center", gap: 12 },
-  toggleTitle: { fontSize: 20, fontWeight: "900" },
-  toggleSub: { marginTop: 8, fontSize: 16, fontWeight: "700" },
+  toggleTitle: { fontSize: 18, fontWeight: "900" },
+  toggleSub: { marginTop: 8, fontSize: 14, fontWeight: "700" },
 
   footerRow: { flexDirection: "row", gap: 14, marginTop: 26 },
   cancelBtn: { flex: 1, borderWidth: 2, borderRadius: 18, paddingVertical: 16, alignItems: "center" },
-  cancelTxt: { fontSize: 20, fontWeight: "900" },
+  cancelTxt: { fontSize: 18, fontWeight: "900" },
 
   saveBtn: { flex: 2, borderRadius: 18, paddingVertical: 16, alignItems: "center" },
-  saveTxt: { color: "#fff", fontSize: 20, fontWeight: "900" },
+  saveTxt: { color: "#fff", fontSize: 18, fontWeight: "900" },
 });

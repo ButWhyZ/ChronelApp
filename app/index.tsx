@@ -2,9 +2,9 @@ import { useEffect } from "react";
 import { View, Text } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAppTheme } from "../hooks/use-app-theme"; // ✅ correct for app/(tabs)/index.tsx
+import { useAppTheme } from "../hooks/use-app-theme";
 
-export default function Splash() {
+export default function Index() {
   const { colors, ready } = useAppTheme();
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function Splash() {
     run();
   }, []);
 
-  // ✅ prevents a light-mode flash before AsyncStorage theme loads
+  // Prevents a light-mode flash before AsyncStorage theme loads
   if (!ready) return null;
 
   return (
@@ -52,6 +52,7 @@ export default function Splash() {
       >
         Chronel
       </Text>
+
       <Text
         testID="ID:splash_taglineTxt_01"
         style={{

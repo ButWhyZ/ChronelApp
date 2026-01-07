@@ -5,7 +5,7 @@ export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem("chronel_loggedIn").then(value => {
+    AsyncStorage.getItem("chronel_loggedIn").then((value) => {
       setIsAuthenticated(value === "true");
     });
   }, []);
