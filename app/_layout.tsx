@@ -3,34 +3,19 @@ import { Slot } from "expo-router";
 import { View, Text, Animated } from "react-native";
 import { AppThemeProvider, useAppTheme } from "../hooks/use-app-theme";
 
-function SplashOverlay({
-  visible,
-  onDone,
-}: {
-  visible: boolean;
-  onDone: () => void;
-}) {
+function SplashOverlay({ visible, onDone }: { visible: boolean; onDone: () => void }) {
   const { colors, ready } = useAppTheme();
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!visible) return;
 
-    // Fade in -> hold -> fade out
     opacity.setValue(0);
 
     const anim = Animated.sequence([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.delay(2200),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
+      Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(900),
+      Animated.timing(opacity, { toValue: 0, duration: 450, useNativeDriver: true }),
     ]);
 
     anim.start(({ finished }) => {
@@ -40,7 +25,6 @@ function SplashOverlay({
     return () => anim.stop();
   }, [visible, opacity, onDone]);
 
-  // ✅ Wait for saved theme/accent to load so splash uses the right colors
   if (!ready) return null;
   if (!visible) return null;
 
@@ -68,7 +52,6 @@ function SplashOverlay({
           fontSize: 44,
           fontWeight: "700",
           color: colors.tint,
-          letterSpacing: 0.2,
         }}
       >
         Chronel
@@ -76,11 +59,7 @@ function SplashOverlay({
 
       <Text
         testID="ID:splash_taglineTxt_01"
-        style={{
-          marginTop: 10,
-          fontSize: 18,
-          color: colors.subtext,
-        }}
+        style={{ marginTop: 10, fontSize: 18, color: colors.subtext }}
       >
         Reflect. Adjust. Repeat.
       </Text>
@@ -91,7 +70,6 @@ function SplashOverlay({
 function AppShell() {
   const [showSplash, setShowSplash] = useState(true);
 
-  // On full reload, RootLayout remounts -> splash shows again
   useEffect(() => {
     setShowSplash(true);
   }, []);

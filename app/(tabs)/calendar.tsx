@@ -1,33 +1,23 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-
-type ThemeMode = "light" | "dark";
+import { useFocusEffect } from "@react-navigation/native";
+import { useAppTheme } from "../../hooks/use-app-theme";
 
 type Task = {
   id: string;
   title: string;
   notes?: string;
   date: string; // YYYY-MM-DD
-  time?: string; // "12:30 PM"
-  priority: "low" | "medium" | "high";
+  time?: string;
+  priority: "low" | "medium" | "high"; // low=Easy, medium=Medium, high=Hard
   addToDeviceCalendar: boolean;
   createdAt: number;
 };
 
-const STORAGE_KEYS = {
-  theme: "chronel_theme",
-  accent: "chronel_accent",
-  tasks: "chronel_tasks",
-};
+const STORAGE_KEYS = { tasks: "chronel_tasks" };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
@@ -35,128 +25,115 @@ const MONTHS = [
   "July","August","September","October","November","December"
 ];
 
+// ✅ Add extra padding because your glass tab bar is absolute-positioned
+const TABBAR_SPACE = 120;
+
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 function toISODate(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
-function parseISODate(iso: string) {
-  const [y, m, dd] = iso.split("-").map(Number);
-  return new Date(y, m - 1, dd);
-}
-
 function getMonthGrid(year: number, monthIndex: number) {
   const first = new Date(year, monthIndex, 1);
-  const startDay = first.getDay(); // 0..6
+  const startDay = first.getDay();
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
 
   const cells: Array<{ date: Date | null; key: string }> = [];
-
-  // leading blanks
   for (let i = 0; i < startDay; i++) {
     cells.push({ date: null, key: `blank-${year}-${monthIndex}-${i}` });
   }
-  // month days
   for (let day = 1; day <= daysInMonth; day++) {
     const d = new Date(year, monthIndex, day);
     cells.push({ date: d, key: toISODate(d) });
   }
-
-  // trailing blanks to complete weeks (optional, keeps grid clean)
   while (cells.length % 7 !== 0) {
     cells.push({ date: null, key: `trail-${year}-${monthIndex}-${cells.length}` });
   }
-
   return cells;
+}
+function priorityRank(p: Task["priority"]) {
+  if (p === "low") return 1;
+  if (p === "medium") return 2;
+  return 3;
 }
 
 export default function CalendarScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
 
-  const [theme, setTheme] = useState<ThemeMode>("light");
-  const [accent, setAccent] = useState("#356AE6");
   const [tasks, setTasks] = useState<Task[]>([]);
-
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
-  // load appearance + tasks
-  useEffect(() => {
-    (async () => {
-      try {
-        const [t, a, savedTasks] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.theme),
-          AsyncStorage.getItem(STORAGE_KEYS.accent),
-          AsyncStorage.getItem(STORAGE_KEYS.tasks),
-        ]);
-
-        if (t === "light" || t === "dark") setTheme(t);
-        if (a) setAccent(a);
-        if (savedTasks) setTasks(JSON.parse(savedTasks));
-      } catch {}
-    })();
-
-    // keep it updated (simple polling so changes show after modal save)
-    const interval = setInterval(async () => {
-      try {
-        const [t, a, savedTasks] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.theme),
-          AsyncStorage.getItem(STORAGE_KEYS.accent),
-          AsyncStorage.getItem(STORAGE_KEYS.tasks),
-        ]);
-        if (t === "light" || t === "dark") setTheme(t);
-        if (a) setAccent(a);
-        if (savedTasks) setTasks(JSON.parse(savedTasks));
-      } catch {}
-    }, 900);
-
-    return () => clearInterval(interval);
+  const loadTasks = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEYS.tasks);
+      setTasks(raw ? JSON.parse(raw) : []);
+    } catch {
+      setTasks([]);
+    }
   }, []);
 
-  const colors = useMemo(() => {
-    const dark = theme === "dark";
-    return {
-      bg: dark ? "#0F1115" : "#FFFFFF",
-      text: dark ? "#F5F7FA" : "#0B0D12",
-      subtext: dark ? "#A7B0BF" : "#6B7280",
-      border: dark ? "#232733" : "#E5E7EB",
-      accent,
-      dayText: dark ? "#F5F7FA" : "#0B0D12",
-      mutedDay: dark ? "#7B8496" : "#9CA3AF",
-    };
-  }, [theme, accent]);
+  useFocusEffect(
+    useCallback(() => {
+      loadTasks();
+    }, [loadTasks])
+  );
 
   const year = cursor.getFullYear();
   const monthIndex = cursor.getMonth();
-
   const grid = useMemo(() => getMonthGrid(year, monthIndex), [year, monthIndex]);
 
-  const datesWithTasks = useMemo(() => {
-    const set = new Set<string>();
-    for (const task of tasks) set.add(task.date);
-    return set;
+  const dayPriorityMap = useMemo(() => {
+    const map = new Map<string, Task["priority"]>();
+    for (const t of tasks) {
+      const prev = map.get(t.date);
+      if (!prev) map.set(t.date, t.priority);
+      else map.set(t.date, priorityRank(t.priority) > priorityRank(prev) ? t.priority : prev);
+    }
+    return map;
   }, [tasks]);
+
+  const dotColorForDay = useCallback(
+    (iso: string) => {
+      const p = dayPriorityMap.get(iso);
+      if (!p) return null;
+      if (p === "low") return "#22C55E";     // Easy green
+      if (p === "medium") return "#F6B100";  // Medium yellow
+      return "#C83737";                      // Hard red
+    },
+    [dayPriorityMap]
+  );
 
   const goPrevMonth = () => setCursor((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
   const goNextMonth = () => setCursor((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
 
+  /**
+   * ✅ BEST FIX (NOT RED):
+   * This requires you have: app/calendar/[date].tsx
+   */
   const openDay = (isoDate: string) => {
-    router.push({ pathname: "/calendar/day", params: { date: isoDate } });
+    router.push({
+      pathname: "/calendar/day",
+      params: { date: isoDate },
+    });
   };
 
   const openAddTask = () => {
-    // default to today in current month cursor (1st) or today's real date:
     const today = new Date();
-    router.push({ pathname: "/calendar/add-task", params: { date: toISODate(today) } });
+    router.push({
+      pathname: "/calendar/add-task",
+      params: { date: toISODate(today) },
+    });
   };
 
   return (
     <ScrollView
       style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: TABBAR_SPACE }]}
       testID="calendar_scrollView_01"
     >
       <Text style={[styles.title, { color: colors.text }]} testID="calendar_header_titleTxt_01">
@@ -166,7 +143,6 @@ export default function CalendarScreen() {
         View tasks and check-ins
       </Text>
 
-      {/* Month Header */}
       <View style={styles.monthHeader} testID="calendar_month_headerRow_01">
         <Pressable onPress={goPrevMonth} style={styles.navBtn} testID="calendar_month_prevBtn_01">
           <Ionicons name="chevron-back" size={28} color={colors.text} testID="calendar_month_prevIcon_01" />
@@ -181,7 +157,6 @@ export default function CalendarScreen() {
         </Pressable>
       </View>
 
-      {/* Weekdays */}
       <View style={styles.weekRow} testID="calendar_weekdays_row_01">
         {WEEKDAYS.map((w, i) => (
           <Text
@@ -194,7 +169,6 @@ export default function CalendarScreen() {
         ))}
       </View>
 
-      {/* Grid */}
       <View style={styles.grid} testID="calendar_month_grid_01">
         {grid.map((cell, idx) => {
           if (!cell.date) {
@@ -203,16 +177,13 @@ export default function CalendarScreen() {
 
           const iso = toISODate(cell.date);
           const dayNum = cell.date.getDate();
-          const hasDot = datesWithTasks.has(iso);
+          const dotColor = dotColorForDay(iso);
 
-          const isToday = (() => {
-            const now = new Date();
-            return (
-              now.getFullYear() === cell.date!.getFullYear() &&
-              now.getMonth() === cell.date!.getMonth() &&
-              now.getDate() === cell.date!.getDate()
-            );
-          })();
+          const now = new Date();
+          const isToday =
+            now.getFullYear() === cell.date.getFullYear() &&
+            now.getMonth() === cell.date.getMonth() &&
+            now.getDate() === cell.date.getDate();
 
           return (
             <Pressable
@@ -224,19 +195,20 @@ export default function CalendarScreen() {
               <View
                 style={[
                   styles.dayPill,
-                  isToday ? { borderColor: colors.accent, borderWidth: 2 } : null,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: isToday ? colors.tint : "transparent",
+                    borderWidth: isToday ? 2 : 0,
+                  },
                 ]}
                 testID={`calendar_dayPill_${iso}_01`}
               >
-                <Text style={[styles.dayText, { color: colors.dayText }]} testID={`calendar_dayTxt_${iso}_01`}>
+                <Text style={[styles.dayText, { color: colors.text }]} testID={`calendar_dayTxt_${iso}_01`}>
                   {dayNum}
                 </Text>
 
-                {hasDot ? (
-                  <View
-                    style={[styles.dot, { backgroundColor: colors.accent }]}
-                    testID={`calendar_dayDot_${iso}_01`}
-                  />
+                {dotColor ? (
+                  <View style={[styles.dot, { backgroundColor: dotColor }]} testID={`calendar_dayDot_${iso}_01`} />
                 ) : (
                   <View style={styles.dotPlaceholder} testID={`calendar_dayDotEmpty_${iso}_01`} />
                 )}
@@ -246,10 +218,9 @@ export default function CalendarScreen() {
         })}
       </View>
 
-      {/* Add Task button */}
       <Pressable
         onPress={openAddTask}
-        style={[styles.addBtn, { backgroundColor: colors.accent }]}
+        style={[styles.addBtn, { backgroundColor: colors.tint }]}
         testID="calendar_addTask_primaryBtn_01"
       >
         <Ionicons name="add" size={26} color="#fff" testID="calendar_addTask_plusIcon_01" />

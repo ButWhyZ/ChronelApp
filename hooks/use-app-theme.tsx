@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type ThemeMode = "light" | "dark";
@@ -8,16 +15,14 @@ const STORAGE_KEYS = {
   accent: "chronel_accent",
 };
 
-type AppThemeColors = {
+export type AppThemeColors = {
   bg: string;
   text: string;
   subtext: string;
   border: string;
   card: string;
-  surface: string;
-  inputBg: string; // ✅ added
-  tint: string; // your accent
-  accent: string; // same as tint (handy)
+  inputBg: string;
+  tint: string;
 };
 
 type AppThemeContextValue = {
@@ -25,49 +30,47 @@ type AppThemeContextValue = {
   themeMode: ThemeMode;
   accent: string;
   colors: AppThemeColors;
-  setThemeMode: (t: ThemeMode) => void;
-  setAccent: (a: string) => void;
+  setThemeMode: (t: ThemeMode) => Promise<void>;
+  setAccent: (a: string) => Promise<void>;
   reload: () => Promise<void>;
 };
 
 const AppThemeContext = createContext<AppThemeContextValue | null>(null);
 
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
   const [themeMode, setThemeModeState] = useState<ThemeMode>("light");
   const [accent, setAccentState] = useState("#356AE6");
+  const [ready, setReady] = useState(false);
 
-  const reload = async () => {
+  const load = useCallback(async () => {
     try {
       const [t, a] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.theme),
         AsyncStorage.getItem(STORAGE_KEYS.accent),
       ]);
+
       if (t === "light" || t === "dark") setThemeModeState(t);
       if (a) setAccentState(a);
     } finally {
       setReady(true);
     }
-  };
-
-  // Load once on app start (critical for web reload + splash)
-  useEffect(() => {
-    reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist when changes happen (after initial load)
   useEffect(() => {
-    if (!ready) return;
-    AsyncStorage.setItem(STORAGE_KEYS.theme, themeMode);
-  }, [themeMode, ready]);
+    load();
+  }, [load]);
 
-  useEffect(() => {
-    if (!ready) return;
-    AsyncStorage.setItem(STORAGE_KEYS.accent, accent);
-  }, [accent, ready]);
+  const setThemeMode = useCallback(async (t: ThemeMode) => {
+    setThemeModeState(t);
+    await AsyncStorage.setItem(STORAGE_KEYS.theme, t);
+  }, []);
 
-  const colors: AppThemeColors = useMemo(() => {
+  const setAccent = useCallback(async (a: string) => {
+    setAccentState(a);
+    await AsyncStorage.setItem(STORAGE_KEYS.accent, a);
+  }, []);
+
+  const colors = useMemo<AppThemeColors>(() => {
     const dark = themeMode === "dark";
     return {
       bg: dark ? "#0F1115" : "#FFFFFF",
@@ -75,31 +78,29 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
       subtext: dark ? "#A7B0BF" : "#6B7280",
       border: dark ? "#232733" : "#E5E7EB",
       card: dark ? "#151823" : "#F7F8FB",
-      surface: dark ? "#121521" : "#FFFFFF",
-      inputBg: dark ? "#151823" : "#EEF0F4", // ✅ added
+      inputBg: dark ? "#151823" : "#EEF0F4",
       tint: accent,
-      accent,
     };
   }, [themeMode, accent]);
 
-  const setThemeMode = (t: ThemeMode) => setThemeModeState(t);
-  const setAccent = (a: string) => setAccentState(a);
-
-  const value: AppThemeContextValue = {
-    ready,
-    themeMode,
-    accent,
-    colors,
-    setThemeMode,
-    setAccent,
-    reload,
-  };
+  const value = useMemo<AppThemeContextValue>(
+    () => ({
+      ready,
+      themeMode,
+      accent,
+      colors,
+      setThemeMode,
+      setAccent,
+      reload: load,
+    }),
+    [ready, themeMode, accent, colors, setThemeMode, setAccent, load]
+  );
 
   return <AppThemeContext.Provider value={value}>{children}</AppThemeContext.Provider>;
 }
 
 export function useAppTheme() {
   const ctx = useContext(AppThemeContext);
-  if (!ctx) throw new Error("useAppTheme must be used within AppThemeProvider");
+  if (!ctx) throw new Error("useAppTheme must be used inside <AppThemeProvider>");
   return ctx;
 }
