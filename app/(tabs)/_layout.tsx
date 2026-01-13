@@ -55,7 +55,6 @@ function GlassTabBar({ state, descriptors, navigation }: any) {
               if (route.name === "index") return isFocused ? "home" : "home-outline";
               if (route.name === "calendar") return isFocused ? "calendar" : "calendar-outline";
               if (route.name === "checkin") return isFocused ? "checkbox" : "checkbox-outline";
-              if (route.name === "insights") return isFocused ? "stats-chart" : "stats-chart-outline";
               if (route.name === "settings") return isFocused ? "settings" : "settings-outline";
               return isFocused ? "ellipse" : "ellipse-outline";
             })();
@@ -126,7 +125,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="calendar" options={{ title: "Calendar" }} />
       <Tabs.Screen name="checkin" options={{ title: "Check-in" }} />
       <Tabs.Screen name="dashboard" options={{ title: "Dashboard" }} />
-      <Tabs.Screen name="insights" options={{ title: "Insights" }} />
       <Tabs.Screen name="settings" options={{ title: "Settings" }} />
     </Tabs>
   );
