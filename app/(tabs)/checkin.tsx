@@ -1,294 +1,244 @@
 // app/(tabs)/checkin.tsx
 import React, { useMemo, useState } from "react";
-import {  View, Text,  TextInput, Pressable, StyleSheet,Platform,
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  Platform,
+  Alert,
+  ScrollView,
 } from "react-native";
-import Slider from "@react-native-community/slider";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppTheme } from "@/hooks/use-app-theme";
 
-type MetricKey = "mood" | "energy" | "stress" | "fulfillment";
+type JournalEntry = {
+  id: string;
+  date: string;
+  title: string;
+  text: string;
+  createdAt: number;
+};
+
+const JOURNAL_KEY = "chronel_journal";
+const TAB_BAR_PAD = Platform.OS === "ios" ? 130 : 110;
+
+function toISODate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
+function genId() {
+  return `journal_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+}
 
 export default function CheckIn() {
   const { colors } = useAppTheme();
+  const todayIso = useMemo(() => toISODate(new Date()), []);
 
-  const [mood, setMood] = useState(3);
-  const [energy, setEnergy] = useState(3);
-  const [stress, setStress] = useState(3);
-  const [fulfillment, setFulfillment] = useState(3);
+  const [journalTitle, setJournalTitle] = useState("");
+  const [journalText, setJournalText] = useState("");
 
-  const [notes, setNotes] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [loadingAi, setLoadingAi] = useState(false);
 
-  const charLimit = 500;
+  /* ---------- Save Journal ---------- */
+  const saveJournal = async () => {
+    if (!journalTitle.trim() || !journalText.trim()) {
+      Alert.alert("Missing info", "Please add a title and journal entry.");
+      return;
+    }
 
-  const metricRows = useMemo(
-    () =>
-      [
-        { key: "mood" as const, label: "Mood", icon: "😊", value: mood, set: setMood },
-        { key: "energy" as const, label: "Energy", icon: "⚡", value: energy, set: setEnergy },
-        { key: "stress" as const, label: "Stress", icon: "😰", value: stress, set: setStress },
-        { key: "fulfillment" as const, label: "Fulfillment", icon: "✨", value: fulfillment, set: setFulfillment },
-      ] as const,
-    [mood, energy, stress, fulfillment]
-  );
+    const entry: JournalEntry = {
+      id: genId(),
+      date: todayIso,
+      title: journalTitle.trim(),
+      text: journalText.trim(),
+      createdAt: Date.now(),
+    };
 
-  const onSave = () => {
-    // TODO: Persist to AsyncStorage / DB
-    // For now just a placeholder
-    console.log("Saved check-in:", { mood, energy, stress, fulfillment, notes });
+    try {
+      const raw = await AsyncStorage.getItem(JOURNAL_KEY);
+      const existing: JournalEntry[] = raw ? JSON.parse(raw) : [];
+
+      await AsyncStorage.setItem(
+        JOURNAL_KEY,
+        JSON.stringify([...existing, entry])
+      );
+
+      setJournalTitle("");
+      setJournalText("");
+
+      Alert.alert("Saved", "Journal saved to today’s calendar.");
+    } catch {
+      Alert.alert("Error", "Could not save journal.");
+    }
   };
 
-  const onAiSuggestions = () => {
-    // TODO: Hook into AI suggestions flow later
-    console.log("AI suggestions requested");
-  };
+  /* ---------- AI (placeholder) ---------- */
+  const generateAi = () => {
+    if (!aiPrompt.trim()) {
+      Alert.alert("AI input required", "Write something for the AI.");
+      return;
+    }
 
-  const styles = useMemo(
-    () =>
-      createStyles({
-        bg: colors.bg,
-        text: colors.text,
-        subtext: colors.subtext,
-        tint: colors.tint,
-        surface: colors.card ?? "#F5F6F8",
-        border: colors.border ?? "#E5E7EB",
-      }),
-    [colors]
-  );
+    setLoadingAi(true);
+    setTimeout(() => {
+      setAiResponse(
+        "Try focusing on one small, achievable win tomorrow. Momentum builds consistency."
+      );
+      setLoadingAi(false);
+    }, 1200);
+  };
 
   return (
-    <View testID="ID:checkin_root_01" style={styles.root}>
-      <Text testID="ID:checkin_titleTxt_01" style={styles.title}>
+    <ScrollView
+      style={{ backgroundColor: colors.bg }}
+      contentContainerStyle={[styles.root, { paddingBottom: TAB_BAR_PAD }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={[styles.title, { color: colors.text }]}>
         Daily Check-In
       </Text>
-      <Text testID="ID:checkin_subTxt_01" style={styles.subtitle}>
-        How are you feeling today?
+
+      {/* JOURNAL */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        Journal
       </Text>
 
-      <View style={{ marginTop: 18, gap: 18 }}>
-        {metricRows.map((m) => (
-          <MetricRow
-            key={m.key}
-            testIDPrefix={`ID:checkin_${m.key}`}
-            label={m.label}
-            icon={m.icon}
-            value={m.value}
-            onChange={m.set}
-            colors={{
-              text: colors.text,
-              subtext: colors.subtext,
-              tint: colors.tint,
-            }}
-          />
-        ))}
-      </View>
-
-      <View style={{ marginTop: 22 }}>
-        <View style={styles.notesHeader}>
-          <Text testID="ID:checkin_notesLabel_01" style={styles.notesLabel}>
-            What happened today?
-          </Text>
-          <Text testID="ID:checkin_notesCount_01" style={styles.notesCount}>
-            {notes.length}/{charLimit}
-          </Text>
-        </View>
-
-        <TextInput
-          testID="ID:checkin_notesInput_01"
-          style={styles.textarea}
-          value={notes}
-          onChangeText={(t) => setNotes(t.slice(0, charLimit))}
-          multiline
-          placeholder="Brief notes about your day, challenges, or wins..."
-          placeholderTextColor={colors.subtext}
-          textAlignVertical="top"
-        />
-      </View>
-
-      <View style={styles.bottom}>
-        <Pressable testID="ID:checkin_saveBtn_01" onPress={onSave} style={styles.primaryBtn}>
-          <Text style={styles.primaryBtnTxt}>Save Check-In</Text>
-        </Pressable>
-
-        <Pressable testID="ID:checkin_aiBtn_01" onPress={onAiSuggestions} style={styles.secondaryBtn}>
-          <Text style={styles.secondaryBtnTxt}>Get AI Suggestions (0/2 today)</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-function MetricRow(props: {
-  testIDPrefix: string;
-  label: string;
-  icon: string;
-  value: number;
-  onChange: (v: number) => void;
-  colors: { text: string; subtext: string; tint: string };
-}) {
-  const { testIDPrefix, label, icon, value, onChange, colors } = props;
-
-  return (
-    <View testID={`${testIDPrefix}_row_01`}>
-      <View style={rowStyles.header}>
-        <Text testID={`${testIDPrefix}_label_01`} style={[rowStyles.label, { color: colors.text }]}>
-          {label}
-        </Text>
-
-        <View style={rowStyles.valueWrap}>
-          <Text testID={`${testIDPrefix}_icon_01`} style={rowStyles.icon}>
-            {icon}
-          </Text>
-          <Text
-            testID={`${testIDPrefix}_value_01`}
-            style={[rowStyles.value, { color: colors.tint }]}
-          >
-            {value}
-          </Text>
-        </View>
-      </View>
-
-      <Slider
-        testID={`${testIDPrefix}_slider_01`}
-        value={value}
-        minimumValue={1}
-        maximumValue={5}
-        step={1}
-        onValueChange={onChange}
-        minimumTrackTintColor={colors.tint}
-        maximumTrackTintColor={"#D1D5DB"}
-        thumbTintColor={colors.tint}
-        style={{ marginTop: 10 }}
+      <TextInput
+        value={journalTitle}
+        onChangeText={setJournalTitle}
+        placeholder="Journal title"
+        placeholderTextColor={colors.subtext}
+        style={[
+          styles.input,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            color: colors.text,
+          },
+        ]}
       />
 
-      <View style={rowStyles.range}>
-        <Text testID={`${testIDPrefix}_low_01`} style={[rowStyles.rangeTxt, { color: colors.subtext }]}>
-          Low
+      <TextInput
+        value={journalText}
+        onChangeText={setJournalText}
+        multiline
+        textAlignVertical="top"
+        placeholder="Write about your day (this is private and not sent to AI)"
+        placeholderTextColor={colors.subtext}
+        style={[
+          styles.textarea,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            color: colors.text,
+          },
+        ]}
+      />
+
+      <Pressable
+        onPress={saveJournal}
+        style={[styles.primaryBtn, { backgroundColor: colors.tint }]}
+      >
+        <Text style={styles.primaryBtnTxt}>Save Journal</Text>
+      </Pressable>
+
+      {/* AI */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        AI Suggestions
+      </Text>
+
+      <TextInput
+        value={aiPrompt}
+        onChangeText={setAiPrompt}
+        multiline
+        textAlignVertical="top"
+        placeholder="Ask AI for advice (this WILL be sent to AI)"
+        placeholderTextColor={colors.subtext}
+        style={[
+          styles.textarea,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            color: colors.text,
+          },
+        ]}
+      />
+
+      <Pressable
+        onPress={generateAi}
+        style={[styles.secondaryBtn, { borderColor: colors.border }]}
+      >
+        <Text style={[styles.secondaryBtnTxt, { color: colors.text }]}>
+          Get AI Suggestions
         </Text>
-        <Text testID={`${testIDPrefix}_high_01`} style={[rowStyles.rangeTxt, { color: colors.subtext }]}>
-          High
+      </Pressable>
+
+      <View
+        style={[
+          styles.aiBox,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <Text style={{ color: colors.text }}>
+          {loadingAi
+            ? "Generating AI response…"
+            : aiResponse ?? "AI suggestions will appear here."}
         </Text>
       </View>
-    </View>
+
+      <View style={{ height: 16 }} />
+    </ScrollView>
   );
 }
 
-const rowStyles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
+const styles = StyleSheet.create({
+  root: { paddingHorizontal: 20, paddingTop: 18 },
+  title: { fontSize: 28, fontWeight: "900", marginBottom: 16 },
+  sectionTitle: { marginTop: 22, fontSize: 18, fontWeight: "900" },
+  input: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  textarea: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    minHeight: 160,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  primaryBtn: {
+    marginTop: 12,
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: "center",
-    justifyContent: "space-between",
   },
-  label: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  valueWrap: {
-    flexDirection: "row",
+  primaryBtnTxt: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  secondaryBtn: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: "center",
-    gap: 8,
   },
-  icon: {
-    fontSize: 18,
-  },
-  value: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  range: {
-    marginTop: 6,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  rangeTxt: {
-    fontSize: 12,
-    fontWeight: "600",
+  secondaryBtnTxt: { fontSize: 16, fontWeight: "900" },
+  aiBox: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    minHeight: 120,
+    justifyContent: "center",
   },
 });
-
-function createStyles(p: {
-  bg: string;
-  text: string;
-  subtext: string;
-  tint: string;
-  surface: string;
-  border: string;
-}) {
-  return StyleSheet.create({
-    root: {
-      flex: 1,
-      backgroundColor: p.bg,
-      paddingHorizontal: 20,
-      paddingTop: 18,
-      paddingBottom: 18,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: "900",
-      color: p.text,
-    },
-    subtitle: {
-      marginTop: 6,
-      fontSize: 16,
-      fontWeight: "600",
-      color: p.subtext,
-    },
-    notesHeader: {
-      flexDirection: "row",
-      alignItems: "baseline",
-      justifyContent: "space-between",
-    },
-    notesLabel: {
-      fontSize: 18,
-      fontWeight: "900",
-      color: p.text,
-    },
-    notesCount: {
-      fontSize: 12,
-      fontWeight: "700",
-      color: p.subtext,
-    },
-    textarea: {
-      marginTop: 10,
-      backgroundColor: p.surface,
-      borderRadius: 14,
-      padding: 14,
-      borderWidth: 1,
-      borderColor: p.border,
-      minHeight: 140,
-      color: p.text,
-      fontSize: 14,
-      lineHeight: 20,
-    },
-    bottom: {
-      marginTop: "auto",
-      gap: 10,
-      paddingTop: 16,
-      paddingBottom: Platform.OS === "ios" ? 8 : 0,
-    },
-    primaryBtn: {
-      backgroundColor: p.tint,
-      borderRadius: 14,
-      paddingVertical: 16,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    primaryBtnTxt: {
-      color: "white",
-      fontSize: 16,
-      fontWeight: "800",
-    },
-    secondaryBtn: {
-      backgroundColor: "transparent",
-      borderRadius: 14,
-      paddingVertical: 16,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: p.border,
-    },
-    secondaryBtnTxt: {
-      color: p.text,
-      fontSize: 16,
-      fontWeight: "800",
-    },
-  });
-}
