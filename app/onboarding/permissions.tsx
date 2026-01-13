@@ -103,7 +103,7 @@ export default function Permissions() {
             testID="ID:perms_getStartedBtn_01"
             title="Get Started"
             onPress={() => {
-              router.replace("/insights"); // placeholder
+              router.replace("/dashboard"); // placeholder
             }}
           />
         </View>
